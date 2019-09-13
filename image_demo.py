@@ -3,6 +3,7 @@ import cv2
 import time
 import argparse
 import os
+import csv
 
 import posenet
 
@@ -15,10 +16,16 @@ parser.add_argument('--image_dir', type=str, default='./images')
 parser.add_argument('--output_dir', type=str, default='./output')
 args = parser.parse_args()
 
-
+HEADER = ['filename', 'Pose', 'ki', 'Keypoint', 'coordinates',  'score']
 def main():
 
     with tf.Session() as sess:
+        if os.path.exists('imagedemo.csv'):
+            os.remove('imagedemo.csv')
+        with open('imagedemo.csv', mode= 'w') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=HEADER)
+            writer.writeheader()
+
         model_cfg, model_outputs = posenet.load_model(args.model, sess)
         output_stride = model_cfg['output_stride']
 
@@ -60,12 +67,26 @@ def main():
             if not args.notxt:
                 print()
                 print("Results for image: %s" % f)
-                for pi in range(len(pose_scores)):
-                    if pose_scores[pi] == 0.:
-                        break
-                    print('Pose #%d, score = %f' % (pi, pose_scores[pi]))
-                    for ki, (s, c) in enumerate(zip(keypoint_scores[pi, :], keypoint_coords[pi, :, :])):
-                        print('Keypoint %s, score = %f, coord = %s' % (posenet.PART_NAMES[ki], s, c))
+
+                with open("imagedemo.csv", mode="a+", newline="") as csvfile:
+
+                    writer = csv.DictWriter(csvfile, fieldnames=HEADER)
+
+                    for pi in range(len(pose_scores)):
+                        if pose_scores[pi] == 0.:
+                            continue
+                        print('Pose #%d, score = %f' % (pi, pose_scores[pi]))
+                        for ki, (s, c) in enumerate(zip(keypoint_scores[pi, :], keypoint_coords[pi, :, :])):
+                            writer.writerow({'filename': f, 'Pose': pi, 'ki':ki, 'Keypoint':posenet.PART_NAMES[ki], 'coordinates': c,  'score': s})
+                            print('Keypoint %s, score = %f, coordinates = %s' % (posenet.PART_NAMES[ki], s, c))
+
+
+                # for pi in range(len(pose_scores)):
+                #     if pose_scores[pi] == 0.:
+                #         break
+                #     print('Pose #%d, score = %f' % (pi, pose_scores[pi]))
+                #     for ki, (s, c) in enumerate(zip(keypoint_scores[pi, :], keypoint_coords[pi, :, :])):
+                #         print('Keypoint %s, score = %f, coordinates = %s' % (posenet.PART_NAMES[ki], s, c))
 
         print('Average FPS:', len(filenames) / (time.time() - start))
 
